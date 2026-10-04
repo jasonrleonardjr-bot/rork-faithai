@@ -88,6 +88,8 @@ All backend routes live on one Cloudflare Worker (`functions/index.ts`):
   Durable Object (see `functions/wall.ts`). `POST /wall/cast|/pray|/answer|/reopen|/delete`,
   author actions are authorized by a client-held token
 - `/llm/*` — OpenAI-compatible relay (see `functions/llm.ts`)
+- `/{anything-else}` — static web app assets when self-hosted (see
+  `functions/wrangler.selfhost.jsonc`; on Rork hosting, assets are served by the platform)
 
 ---
 
@@ -123,10 +125,22 @@ putting it on **your own** Cloudflare account:
 3. Deploy. Your prayer wall, Gather meetups, and companion chat all work from the
    Pages domain; only the LLM base URL in Settings is per-user config.
 
-> Fully self-owned option: the worker in `functions/` can also be deployed to your
-> own Cloudflare account with `wrangler deploy` (add the Durable Object migrations
-> and set `LLM_UPSTREAM`/`LLM_API_KEY`), then point `VITE_BACKEND_BASE_URL` at your
-> own worker URL. Nothing in the code is Rork-specific.
+> Fully self-owned option: deploy the **entire stack** (web app + prayer wall +
+> Gather + LLM relay) as a single Worker on your own account — see
+> `functions/wrangler.selfhost.jsonc` for the exact steps:
+>
+> ```sh
+> cd web && bun install && bun run build
+> cd ../functions
+> bun x wrangler login
+> bun x wrangler deploy -c wrangler.selfhost.jsonc   # then add your domain under "routes"
+> bun x wrangler secret put LLM_UPSTREAM -c wrangler.selfhost.jsonc  # e.g. https://llm.faith.me.co.uk
+> bun x wrangler secret put LLM_API_KEY  -c wrangler.selfhost.jsonc  # if your server needs a key
+> ```
+>
+> The self-hosted worker serves the web app as static assets and the API under
+> the same origin (the `/~api` prefix works there too), so nothing else needs
+> configuring. Nothing in the code is Rork-specific.
 
 ---
 

@@ -1,0 +1,48 @@
+// Self-hosted deployment config — the whole Emmaus stack on YOUR Cloudflare
+// account as one Worker: the web app (static assets) + the API (prayer wall,
+// Gather meetups, LLM relay). Rork's own pipeline ignores this file; it is only
+// used when you deploy explicitly with `-c wrangler.selfhost.jsonc`.
+//
+// Prerequisites:
+//   1. Build the web app:            cd ../web && bun install && bun run build
+//   2. Log in:                       bun x wrangler login
+//   3. Deploy:                       bun x wrangler deploy -c wrangler.selfhost.jsonc
+//   4. Link your model server (optional but recommended):
+//        bun x wrangler secret put LLM_UPSTREAM -c wrangler.selfhost.jsonc
+//          → e.g. https://llm.faith.me.co.uk  (your Cloudflare Tunnel, see README)
+//        bun x wrangler secret put LLM_API_KEY  -c wrangler.selfhost.jsonc
+//          → only if your model server requires a key
+//
+// Custom domain: uncomment "routes" below and set your hostname (the zone must
+// be on this Cloudflare account, e.g. faith.me.co.uk). Then in Emmaus Settings:
+//   - Companion model server: https://<your-host>/llm/v1
+//   - The web app, prayer wall, and Gather all work same-origin automatically.
+{
+  "name": "emmaus",
+  "main": "index.ts",
+  "compatibility_date": "2025-09-01",
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MeetupHub", "PrayerWall"] }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "MEETUP_HUB", "class_name": "MeetupHub" },
+      { "name": "WALL", "class_name": "PrayerWall" }
+    ]
+  },
+  "assets": {
+    "directory": "../web/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/ping",
+      "/gather",
+      "/gather/*",
+      "/wall",
+      "/wall/*",
+      "/llm",
+      "/llm/*",
+      "/~api",
+      "/~api/*"
+    ]
+  },
+  "observability": { "enabled": true }
+  // "routes": [{ "pattern": "emmaus.faith.me.co.uk", "custom_domain": true }]
+}

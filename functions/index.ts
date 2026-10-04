@@ -6,8 +6,15 @@
 // handled by the PrayerWall Durable Object. See wall.ts. /llm is an
 // OpenAI-compatible relay that forwards to your own model server (linked via a
 // Cloudflare Tunnel). See llm.ts.
+//
+// Works in two environments:
+//   - Rork hosting: Rork dispatches DOs via env.DO + X-Rork-DO-* headers, and
+//     already strips the web app's "/~api" prefix before requests arrive here.
+//   - Self-hosted (see wrangler.selfhost.jsonc): real Durable Object namespace
+//     bindings (MEETUP_HUB, WALL) plus the web app served as static assets —
+//     this worker then strips the "/~api" prefix itself.
 
-import type { Fetcher } from "@cloudflare/workers-types";
+import type { DurableObjectNamespace, Fetcher } from "@cloudflare/workers-types";
 
 import { handleLLM, type RelayEnv } from "./llm";
 
@@ -15,7 +22,9 @@ export { MeetupHub } from "./meetup";
 export { PrayerWall } from "./wall";
 
 type Env = {
-  DO: Fetcher;
+  DO: Fetcher; // Rork-managed DO dispatcher
+  MEETUP_HUB?: DurableObjectNamespace; // self-hosted bindings (wrangler.selfhost.jsonc)
+  WALL?: DurableObjectNamespace;
   LLM_UPSTREAM?: string;
   LLM_API_KEY?: string;
 };
@@ -33,8 +42,15 @@ const withCors = (response: Response): Response => {
 };
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env): Promise<Response> {
+    let request = req;
     const url = new URL(request.url);
+
+    // Self-hosted: the web app calls the backend same-origin under "/~api".
+    if (url.pathname === "/~api" || url.pathname.startsWith("/~api/")) {
+      url.pathname = url.pathname.slice("/~api".length) || "/";
+      request = new Request(url.toString(), request);
+    }
 
     if (url.pathname === "/ping") {
       return withCors(Response.json({ ok: true, now: new Date().toISOString() }));
@@ -48,13 +64,17 @@ export default {
       return env.DO.fetch(wrapped);
     };
 
+    // Prefer real namespace bindings (self-hosted); fall back to Rork's dispatcher.
+    const dispatchDO = (ns: DurableObjectNamespace | undefined, className: string, id: string) =>
+      ns ? ns.get(ns.idFromName(id)).fetch(request) : toDO(className, id);
+
     if (url.pathname === "/gather") {
-      return toDO("MeetupHub", "global");
+      return dispatchDO(env.MEETUP_HUB, "MeetupHub", "global");
     }
 
     if (url.pathname === "/wall" || url.pathname.startsWith("/wall/")) {
       if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-      return withCors(toDO("PrayerWall", "wall"));
+      return withCors(dispatchDO(env.WALL, "PrayerWall", "wall"));
     }
 
     if (url.pathname === "/llm" || url.pathname.startsWith("/llm/")) {
