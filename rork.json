@@ -1,0 +1,20 @@
+{
+  "$schema": "https://rork.com/schema/rork.json",
+  "apps": [
+    {
+      "name": "Emmaus",
+      "path": "ios-emmaus",
+      "framework": "swift"
+    },
+    {
+      "name": "Functions",
+      "path": "functions",
+      "framework": "cloudflare"
+    },
+    {
+      "name": "Emmaus",
+      "path": "web",
+      "framework": "web"
+    }
+  ]
+}
