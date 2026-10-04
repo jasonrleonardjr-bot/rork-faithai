@@ -20,12 +20,24 @@ type Env = {
   LLM_API_KEY?: string;
 };
 
+const CORS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+const withCors = (response: Response): Response => {
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(CORS)) headers.set(key, value);
+  return new Response(response.body, { status: response.status, headers });
+};
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/ping") {
-      return Response.json({ ok: true, now: new Date().toISOString() });
+      return withCors(Response.json({ ok: true, now: new Date().toISOString() }));
     }
 
     // MUST use the 2-arg form — a 1-arg clone drops the Upgrade header.
@@ -41,7 +53,8 @@ export default {
     }
 
     if (url.pathname === "/wall" || url.pathname.startsWith("/wall/")) {
-      return toDO("PrayerWall", "wall");
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+      return withCors(toDO("PrayerWall", "wall"));
     }
 
     if (url.pathname === "/llm" || url.pathname.startsWith("/llm/")) {

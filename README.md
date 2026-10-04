@@ -105,6 +105,31 @@ cd web && bun install && bun run build
 
 ---
 
+## Hosting the web app on Cloudflare
+
+Yes — the web app is a static Vite build, so Cloudflare Pages (or Workers with static
+assets) hosts it happily. The Rork-hosted copy keeps working as-is; this is for
+putting it on **your own** Cloudflare account:
+
+1. Push the repo to GitHub (see below).
+2. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git**,
+   pick the repo, and set:
+   - Project root: `web`
+   - Build command: `bun run build`
+   - Build output directory: `dist`
+   - Environment variable: `VITE_BACKEND_BASE_URL = https://faithai-backend.rork.app`
+     (this tells the app to call the backend worker directly instead of the
+     same-origin `/~api` proxy — the worker already sends permissive CORS headers)
+3. Deploy. Your prayer wall, Gather meetups, and companion chat all work from the
+   Pages domain; only the LLM base URL in Settings is per-user config.
+
+> Fully self-owned option: the worker in `functions/` can also be deployed to your
+> own Cloudflare account with `wrangler deploy` (add the Durable Object migrations
+> and set `LLM_UPSTREAM`/`LLM_API_KEY`), then point `VITE_BACKEND_BASE_URL` at your
+> own worker URL. Nothing in the code is Rork-specific.
+
+---
+
 ## Publishing to GitHub
 
 The code is version-controlled automatically; to mirror it to GitHub:
